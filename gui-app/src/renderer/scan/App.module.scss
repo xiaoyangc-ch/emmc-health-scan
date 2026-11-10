@@ -1,0 +1,172 @@
+@use '../theme' as *;
+
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-bg-container);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.inputSubnet {
+  :global(input) {
+    width: 200px;
+  }
+}
+
+.inputHosts {
+  flex: 1;
+  :global(input) {
+    width: 100%;
+    min-width: 240px;
+  }
+}
+
+.btnPlay,
+.btnStop,
+.btnDisabled {
+  font-weight: normal;
+}
+
+.btnPlay {
+  color: var(--color-primary, #1890ff);
+}
+
+.btnStop {
+  color: var(--color-text-secondary, #8c8c8c);
+}
+
+.btnDisabled {
+  opacity: 0.5;
+}
+
+.gridWrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.grid {
+  height: 100%;
+}
+
+.empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: none;
+  background: var(--color-bg-container);
+}
+
+.emptyIcon {
+  font-size: 36px;
+  color: var(--color-text-tertiary, #bfbfbf);
+  opacity: 0.6;
+}
+
+.emptyText {
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.emptyHint {
+  font-size: 12px;
+  color: var(--color-text-tertiary, #8c8c8c);
+}
+
+.reportHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 10px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-container);
+}
+
+.reportTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.badges {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.badgeOk {
+  color: #52c41a;
+}
+
+.badgeWarn {
+  color: #faad14;
+}
+
+.badgeUrgent {
+  color: #ff4d4f;
+}
+
+.badgeUnknown {
+  color: #8c8c8c;
+}
+
+.badgeFail {
+  color: var(--color-text-secondary, #8c8c8c);
+}
+
+.report {
+  height: 32%;
+  min-height: 120px;
+  margin: 0;
+  padding: 8px 10px;
+  border-top: 1px solid var(--color-border);
+  overflow: auto;
+  white-space: pre-wrap;
+  font-family: $font-family-code;
+  font-size: #{$font-size-s-m}px;
+  line-height: 1.7;
+  color: var(--color-text);
+}
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 3px 10px;
+  border-top: 1px solid var(--color-border);
+  font-size: 12px;
+  color: var(--color-text-tertiary, #8c8c8c);
+}
+
+.statusDir {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+}
+
+/* 结论/预留块的彩色圆点徽标 */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}

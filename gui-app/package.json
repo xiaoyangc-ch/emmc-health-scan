@@ -1,0 +1,43 @@
+{
+  "name": "emmc-scan",
+  "productName": "eMMC健康扫描",
+  "appId": "com.emmc.scan",
+  "version": "1.0.3",
+  "description": "网段级 eMMC 健康度扫描工具（基于 AYA 改编）",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:main\" \"npm run dev:preload\" \"npm run dev:renderer\"",
+    "dev:main": "vite build --watch --config vite.main.ts --mode=development",
+    "dev:preload": "vite build --watch --config vite.preload.ts --mode=development",
+    "dev:renderer": "vite",
+    "build:main": "vite build --config vite.main.ts",
+    "build:preload": "vite build --config vite.preload.ts",
+    "build:renderer": "vite build",
+    "build": "zx script/build.mjs",
+    "pack": "zx script/pack.mjs",
+    "start": "electron ./dist/main/index.js"
+  },
+  "author": "xiaoyangc-ch",
+  "license": "AGPL-3.0",
+  "devDependencies": {
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.3.2",
+    "concurrently": "^9.0.1",
+    "custom-electron-titlebar": "^4.2.8",
+    "electron": "30.5.1",
+    "electron-builder": "^25.1.8",
+    "fs-extra": "^11.2.0",
+    "licia": "^1.48.0",
+    "luna-data-grid": "^2.0.2",
+    "luna-toolbar": "^0.9.2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "sass": "^1.80.2",
+    "vite": "^5.4.9",
+    "zx": "^8.8.0"
+  },
+  "dependencies": {
+    "luna-menu": "^0.2.0"
+  }
+}

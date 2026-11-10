@@ -1,0 +1,12 @@
+node_modules/
+dist/
+release/
+build/
+*.log
+*.pdb
+*.zip
+reports/
+npm-install.log
+probe_out.txt
+e2e-out.txt
+host/resource/device/*.bak
