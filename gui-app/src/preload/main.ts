@@ -26,6 +26,7 @@ const mainObj = {
         timeoutMs: number
         keepRemote: boolean
         noReportFallback?: boolean
+        memoryTest?: boolean
         adb?: string
       }
     ) => Promise<{ ok: boolean; found: number; okCount: number; reportDir: string; message: string }>

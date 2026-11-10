@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import LunaToolbar, {
+  LunaToolbarCheckbox,
   LunaToolbarInput,
   LunaToolbarSpace,
   LunaToolbarText,
@@ -20,6 +21,7 @@ interface DeviceResult {
   ok: boolean
   report: any
   errorDetail: string
+  mem: { status: string; testedMB: number; errors: number; firstError: string } | null
 }
 
 interface ScanStartResult {
@@ -28,6 +30,15 @@ interface ScanStartResult {
   okCount: number
   reportDir: string
   message: string
+}
+
+function memZh(m: DeviceResult['mem']): string {
+  if (!m) return ''
+  if (m.status === 'pass') return `通过 ${m.testedMB}M`
+  if (m.status === 'partial') return `通过(部分) ${m.testedMB}M`
+  if (m.status === 'fail')
+    return `失败 ${m.errors}处${m.firstError ? ' @' + m.firstError : ''}`
+  return m.status
 }
 
 const VERDICT_COLOR: Record<string, string> = {
@@ -87,6 +98,7 @@ const columns = [
   { id: 'lifeA', title: '寿命A', sortable: true, weight: 8 },
   { id: 'lifeB', title: '寿命B', sortable: true, weight: 8 },
   { id: 'verdict', title: '结论', sortable: true, weight: 8 },
+  { id: 'mem', title: '内存快测', sortable: true, weight: 10 },
   { id: 'note', title: '备注', sortable: true, weight: 12 },
 ]
 
@@ -97,6 +109,7 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [subnet, setSubnet] = useState('')
   const [hosts, setHosts] = useState('')
+  const [memCheck, setMemCheck] = useState(false)
   const [summary, setSummary] = useState('')
   const [counts, setCounts] = useState({ ok: 0, warning: 0, urgent: 0, unknown: 0, fail: 0 })
   const [hasScanned, setHasScanned] = useState(false)
@@ -129,7 +142,7 @@ export default function App() {
         }
         if (ev.total === 0) {
           setSummary(
-            '网段内未发现 adb 设备（端口未开放）。\n确认设备已开启网络 ADB，或在「IP 列表」中直接填入目标 IP。'
+            '网段内未发现 adb 设备（端口未开放）。\n确认盒子已开启网络 ADB，或在「IP 列表」中直接填入目标 IP。'
           )
           return
         }
@@ -192,6 +205,7 @@ export default function App() {
         lifeA: '-',
         lifeB: '-',
         verdict: '-',
+        mem: memZh(r.mem),
         note: r.status + (r.errorDetail ? ' ' + r.errorDetail : ''),
       }
     }
@@ -208,6 +222,7 @@ export default function App() {
       lifeA: lifeText(d.life_a),
       lifeB: lifeText(d.life_b),
       verdict: vText,
+      mem: memZh(r.mem),
       note: r.rootNote + (d.error ? ' / ' + d.error : ''),
     }
   }
@@ -236,13 +251,14 @@ export default function App() {
         port: 5555,
         timeoutMs: 1500,
         keepRemote: false,
+        memoryTest: memCheck,
       })
       if (!r.ok) {
         setSummary(r.message)
         setBusy(false)
       } else if (r.found === 0) {
         setSummary(
-          '网段内未发现 adb 设备（端口未开放）。\n确认设备已开启网络 ADB，或在「IP 列表」中直接填入目标 IP。'
+          '网段内未发现 adb 设备（端口未开放）。\n确认盒子已开启网络 ADB，或在「IP 列表」中直接填入目标 IP。'
         )
         setBusy(false)
       }
@@ -251,7 +267,7 @@ export default function App() {
       setSummary('错误: ' + (e && e.message ? e.message : e))
       setBusy(false)
     }
-  }, [busy, subnet, hosts])
+  }, [busy, subnet, hosts, memCheck])
 
   const stopScan = useCallback(async () => {
     await main.scanStop()
@@ -286,6 +302,7 @@ export default function App() {
         `寿命估计 A: 0x${d.life_a.toString(16)}（${lifeText(d.life_a)}）`,
         `寿命估计 B: 0x${d.life_b.toString(16)}（${lifeText(d.life_b)}）`,
         `综合结论: ${verdictZh(d.verdict)}`,
+        r.mem ? `内存快测: ${memZh(r.mem)}` : '',
         `数据来源: ${d.source}`,
         d.error ? `设备端提示: ${d.error} ${d.os_error || ''}` : '',
         '',
@@ -335,6 +352,12 @@ export default function App() {
           value={hosts}
           onChange={(value: string) => setHosts(value)}
           placeholder="192.168.20.103,192.168.20.124"
+        />
+        <LunaToolbarCheckbox
+          keyName="memtest"
+          value={memCheck}
+          label="内存快测"
+          onChange={(value: boolean) => setMemCheck(value)}
         />
         <LunaToolbarSpace />
         <ToolbarIcon icon="open-file" disabled={!reportDir} onClick={() => main.scanOpenReports()}>
@@ -387,7 +410,7 @@ export default function App() {
       </div>
       <pre className={Style.report} ref={summaryRef}>
         {summary ||
-          '点「开始扫描」自动探测本机网段并扫描所有设备的 eMMC 健康度。\n指定网段填入如 192.168.1.x；指定单台填入 IP 列表如 192.168.20.103,192.168.20.124。\n选中表格行可查看该设备的完整检测明细。'}
+          '点「开始扫描」自动探测本机网段并扫描所有盒子的 eMMC 健康度。\n指定网段填入如 192.168.1.x；指定单台填入 IP 列表如 192.168.20.103,192.168.20.124。\n选中表格行可查看该设备的完整检测明细。'}
       </pre>
       <div className={Style.statusbar}>
         <span>eMMC健康扫描 v{VERSION}</span>

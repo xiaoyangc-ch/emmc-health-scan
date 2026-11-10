@@ -10,12 +10,20 @@ import log from 'share/common/log'
 
 const logger = log('scan')
 const REMOTE = '/data/local/tmp/emmc_health'
+const MEM_REMOTE = '/data/local/tmp/memtest'
 
 /** 扫描事件推给渲染层 */
 type ScanEvent =
   | { type: 'progress'; done: number; total: number; found: number }
   | { type: 'device'; result: DeviceResult }
   | { type: 'done'; ok: number; total: number; elapsedMs: number; reportDir: string }
+
+export interface MemTestResult {
+  status: string
+  testedMB: number
+  errors: number
+  firstError: string
+}
 
 export interface DeviceResult {
   ip: string
@@ -27,6 +35,7 @@ export interface DeviceResult {
   ok: boolean
   report: any | null
   errorDetail: string
+  mem: MemTestResult | null
 }
 
 interface ScanOptions {
@@ -224,6 +233,16 @@ function verdictZh(v: string): string {
   return v === 'ok' ? '正常' : v === 'warning' ? '警告' : v === 'urgent' ? '紧急' : '未知'
 }
 
+/** 内存快测结果的中文摘要 */
+function memZh(m: MemTestResult | null | undefined): string {
+  if (!m) return ''
+  if (m.status === 'pass') return `通过 ${m.testedMB}M`
+  if (m.status === 'partial') return `通过(部分) ${m.testedMB}M`
+  if (m.status === 'fail')
+    return `失败 ${m.errors}处${m.firstError ? ' @' + m.firstError : ''}`
+  return m.status
+}
+
 function preEolZh(v: number): string {
   if (v === 1) return '正常'
   if (v === 2) return '警告'
@@ -259,7 +278,8 @@ async function scanDevice(
   adb: string,
   ip: string,
   port: number,
-  keepRemote: boolean
+  keepRemote: boolean,
+  memEnabled: boolean
 ): Promise<DeviceResult> {
   const r: DeviceResult = {
     ip,
@@ -271,6 +291,7 @@ async function scanDevice(
     ok: false,
     report: null,
     errorDetail: '',
+    mem: null,
   }
   const serial = `${ip}:${port}`
 
@@ -360,11 +381,37 @@ async function scanDevice(
     r.report = report
     r.ok = true
     r.status = '扫描成功'
+
+    // 6.5) 可选内存快测（独立于 eMMC 结果；写读校验无需 root）
+    if (memEnabled) {
+      const memBin = resolveResources(
+        path.join('emmc', r.abi.includes('arm64') ? 'memtest_v8a' : 'memtest_v7a')
+      )
+      const mpush = await runAdb(['-s', serial, 'push', memBin, MEM_REMOTE], 60000)
+      if (mpush.code === 0 && !mpush.timedOut) {
+        await shell(serial, 'chmod 755 ' + MEM_REMOTE, 8000)
+        const margs = ['-s', serial, 'shell', ...`${MEM_REMOTE} --mb auto --seconds 60 --json`.split(' ')]
+        const mrun = await runAdb(margs, 150000)
+        const m = parseDeviceJson(clean(mrun.stdout))
+        if (m) {
+          r.mem = {
+            status: m.status === 'fail' ? 'fail' : m.stopped_by_deadline ? 'partial' : 'pass',
+            testedMB: Math.round((m.tested_bytes || 0) / 1048576),
+            errors: m.errors || 0,
+            firstError: m.first_error_offset >= 0 ? '0x' + m.first_error_offset.toString(16) : '',
+          }
+        } else {
+          r.mem = { status: '无输出', testedMB: 0, errors: 0, firstError: '' }
+        }
+      } else {
+        r.mem = { status: '推送失败', testedMB: 0, errors: 0, firstError: '' }
+      }
+    }
     return r
   } finally {
     // 7) 清理远端临时文件
     if (!keepRemote) {
-      await shell(serial, 'rm -f ' + REMOTE, 8000)
+      await shell(serial, 'rm -f ' + REMOTE + ' ' + MEM_REMOTE, 8000)
     }
   }
 }
@@ -391,7 +438,7 @@ async function writeReports(
   })
 
   const head =
-    '序号,IP,端口,设备型号,ABI,Root通道,eMMC,厂商,序列号,生产日期,容量字节,容量,CID,ExtCSD版本,MMC规范,预留块(pre_eol),寿命A,寿命B,结论,数据来源,错误,扫描时间'
+    '序号,IP,端口,设备型号,ABI,Root通道,eMMC,厂商,序列号,生产日期,容量字节,容量,CID,ExtCSD版本,MMC规范,预留块(pre_eol),寿命A,寿命B,结论,内存快测,数据来源,错误,扫描时间'
   const lines = [head]
   sorted.forEach((r, i) => {
     const d: any = r.report || {}
@@ -416,6 +463,7 @@ async function writeReports(
         d.life_a ?? '',
         d.life_b ?? '',
         escapeCsv(r.ok ? verdictZh(d.verdict) : ''),
+        escapeCsv(memZh(r.mem)),
         escapeCsv(d.source || ''),
         escapeCsv(r.errorDetail || d.error || ''),
         escapeCsv(ts.toLocaleString('zh-CN')),
@@ -435,6 +483,7 @@ async function writeReports(
     sb.push(`扫描时间: ${ts.toLocaleString('zh-CN')}`)
     sb.push(`设备型号: ${r.model}    ABI: ${r.abi}    Root通道: ${r.rootNote}`)
     sb.push(`状态: ${r.status}`)
+    if (r.mem) sb.push(`内存快测: ${memZh(r.mem)}`)
     if (r.ok && r.report) {
       sb.push('')
       sb.push(`eMMC 设备: ${d.device} (${d.node})  类型: ${d.type}`)
@@ -494,7 +543,12 @@ export function init() {
     'scanStart',
     async (
       _event,
-      opts: ScanOptions & { hosts: string[]; keepRemote: boolean; adb: string }
+      opts: ScanOptions & {
+        hosts: string[]
+        keepRemote: boolean
+        adb: string
+        memoryTest: boolean
+      }
     ): Promise<{ ok: boolean; found: number; okCount: number; reportDir: string; message: string }> => {
       if (running) {
         return { ok: false, found: 0, okCount: 0, reportDir: '', message: '已有扫描在进行中' }
@@ -560,7 +614,7 @@ export function init() {
             const idx = nextIdx++
             const ip = targets[idx]
             const port = hostPorts.get(ip) ?? opts.port
-            const r = await scanDevice(adbPath(), ip, port, opts.keepRemote)
+            const r = await scanDevice(adbPath(), ip, port, opts.keepRemote, !!opts.memoryTest)
             all.push(r)
             finished++
             sendToMain('scanEvent', { type: 'device', result: r })
